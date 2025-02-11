@@ -1,24 +1,25 @@
-"""数据处理模型"""
-from typing import (Any, Dict, NamedTuple, Optional)
-from pydantic import BaseModel # pylint: disable=no-name-in-module
+"""
+数据模型
+"""
+from typing import Any, Dict, NamedTuple, Optional
 
 
-class ApiResultHandler(BaseModel):
+class ApiResultHandler:
     """
     API返回的数据处理器
     """
-    content: Dict[str, Any]
-    """API返回的JSON对象序列化以后的Dict对象"""
-    data: Dict[str, Any] = {}
-    """API返回的数据体"""
-    message: str = ""
-    """API返回的消息内容"""
-    status: Optional[int] = None
-    """API返回的状态码"""
-
     def __init__(self, content: Dict[str, Any]):
-        super().__init__(content=content)
+        """
+        初始化处理器，解析API返回的数据。
 
+        :param content: API返回的原始JSON对象
+        """
+        self.content = content
+        self.data: Dict[str, str] = self.content.get("data", {})
+        self.message: str = self.content.get("message", "")
+        self.status = self.content.get("status")
+
+        # 尝试从其他键获取数据
         for key in ["data", "entity"]:
             if self.data == {}:
                 self.data = self.content.get(key, {})
@@ -35,7 +36,7 @@ class ApiResultHandler(BaseModel):
             if self.message == "":
                 self.message = self.content.get(key, "")
                 if self.message is None and isinstance(self.data, dict):
-                    self.message = self.data.get(key)
+                    self.message = self.data.get(key, "")
 
     @property
     def success(self):
@@ -49,16 +50,13 @@ class LoginResultHandler(ApiResultHandler):
     """
     登录API返回的数据处理器
     """
-    pwd: Optional[int] = None
-    """登录状态"""
-    location: Optional[str] = None
-    """登录成功后的跳转地址"""
-
     def __init__(self, content: Dict[str, Any]):
         super().__init__(content=content)
 
         self.pwd = self.content.get("pwd")
         self.location = self.content.get("location")
+        self.pass_token = self.content.get("passToken")
+        self.user_id = str(self.content.get("userId"))
 
     @property
     def need_captcha(self):
@@ -92,9 +90,6 @@ class SignResultHandler(ApiResultHandler):
     签到API返回的数据处理器
     """
 
-    growth: Optional[str] = None
-    """签到成功后的成长值"""
-
     def __init__(self, content: Dict[str, Any]):
         super().__init__(content=content)
         self.growth = self.content.get("entity", {})
@@ -105,7 +100,6 @@ class SignResultHandler(ApiResultHandler):
         else:
             self.growth = None
 
-    # pylint: disable=trailing-whitespace
     def __bool__(self):
         """
         签到是否成功
@@ -124,11 +118,8 @@ class TokenResultHandler(ApiResultHandler):
     """
     TOKEN数据处理器
     """
-    token: str = ""
-
     def __init__(self, content: Dict[str, Any]):
         super().__init__(content=content)
-
         self.token = self.data.get("token", "")
 
     @property
@@ -147,16 +138,19 @@ class GeetestResult(NamedTuple):
     validate: str
     challenge: str
 
-class UserInfoResult(BaseModel):
-    """用户信息数据"""
-    title: str = "未知"
-    """等级名称"""
-    point: int = 0
-    """积分"""
 
+class UserInfoResult:
+    """用户信息数据"""
     def __init__(self, **kwargs):
+        """
+        初始化用户信息对象
+
+        :param kwargs: 用户信息字典，包含了 'userInfo' 和 'userGrowLevelInfo'
+        """
         if isinstance(kwargs, dict) and kwargs:
-            kwargs = kwargs.get("userInfo", {}).get("userGrowLevelInfo")
-            super().__init__(**kwargs)
+            kwargs = kwargs.get("userInfo", {}).get("userGrowLevelInfo", {})
+            self.title = kwargs.get("title", "未知")
+            self.point = kwargs.get("point", 0)
         else:
-            super().__init__()
+            self.title = "未知"
+            self.point = 0
